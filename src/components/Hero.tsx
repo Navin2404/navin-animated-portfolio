@@ -4,32 +4,108 @@ import { useEffect, useRef } from 'react'
 
 export default function Hero() {
   const linesRef = useRef<SVGSVGElement>(null)
-  const circle1Ref = useRef<HTMLDivElement>(null)
-  const circle2Ref = useRef<HTMLDivElement>(null)
   const nameRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const mouse = useRef({ x: -999, y: -999 })
+  const smoothMouse = useRef({ x: -999, y: -999 })
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const onMove = (e: MouseEvent) => {
+      mouse.current = { x: e.clientX, y: e.clientY }
+
       const { innerWidth, innerHeight } = window
       const x = (e.clientX / innerWidth - 0.5) * 2
       const y = (e.clientY / innerHeight - 0.5) * 2
 
       if (linesRef.current) {
-        linesRef.current.style.transform = `translate(${x * 20}px, ${y * 15}px)`
-      }
-      if (circle1Ref.current) {
-        circle1Ref.current.style.transform = `translate(${x * 35}px, ${y * 30}px)`
-      }
-      if (circle2Ref.current) {
-        circle2Ref.current.style.transform = `translate(${x * 15}px, ${y * 20}px)`
+        linesRef.current.style.transform = `translate(${x * 15}px, ${y * 10}px)`
       }
       if (nameRef.current) {
-        nameRef.current.style.transform = `translate(${x * 8}px, ${y * 5}px)`
+        nameRef.current.style.transform = `translate(${x * 6}px, ${y * 4}px)`
       }
     }
 
-    window.addEventListener('mousemove', handleMouseMove)
-    return () => window.removeEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mousemove', onMove, { passive: true })
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const resize = () => {
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+    }
+    resize()
+    window.addEventListener('resize', resize)
+
+    const SPACING = 90
+    const RADIUS = 220
+    const STRENGTH = 55
+    let animId: number
+
+    const draw = () => {
+      smoothMouse.current.x += (mouse.current.x - smoothMouse.current.x) * 0.08
+      smoothMouse.current.y += (mouse.current.y - smoothMouse.current.y) * 0.08
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      const mx = smoothMouse.current.x
+      const my = smoothMouse.current.y
+
+      // ---- HORIZONTAL lines — STATIC, no warp ----
+      ctx.strokeStyle = 'rgba(200,200,210,0.1)'
+      ctx.lineWidth = 0.6
+      for (let gy = 0; gy <= canvas.height; gy += SPACING) {
+        ctx.beginPath()
+        ctx.moveTo(0, gy)
+        ctx.lineTo(canvas.width, gy)
+        ctx.stroke()
+      }
+
+      // ---- VERTICAL lines — PULL towards cursor ----
+      for (let gx = 0; gx <= canvas.width; gx += SPACING) {
+        ctx.beginPath()
+        ctx.strokeStyle = 'rgba(200,200,210,0.13)'
+        ctx.lineWidth = 0.7
+
+        let started = false
+        for (let gy = 0; gy <= canvas.height; gy += 3) {
+          const dx = gx - mx
+          const dy = gy - my
+          const dist = Math.sqrt(dx * dx + dy * dy)
+
+          let px = gx
+          let py = gy
+
+          if (dist < RADIUS && dist > 0) {
+            const force = ((RADIUS - dist) / RADIUS) * STRENGTH
+            px = gx + (mx - gx) / dist * force
+            py = gy + (my - gy) / dist * force
+          }
+
+          if (!started) {
+            ctx.moveTo(px, py)
+            started = true
+          } else {
+            ctx.lineTo(px, py)
+          }
+        }
+        ctx.stroke()
+      }
+
+      animId = requestAnimationFrame(draw)
+    }
+
+    animId = requestAnimationFrame(draw)
+
+    return () => {
+      window.removeEventListener('resize', resize)
+      cancelAnimationFrame(animId)
+    }
   }, [])
 
   return (
@@ -38,108 +114,93 @@ export default function Hero() {
       className="relative w-full h-screen overflow-hidden"
       style={{ backgroundColor: 'var(--bg)' }}
     >
-      {/* SVG Lines */}
+      {/* Warping Grid Canvas */}
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 pointer-events-none"
+        style={{ zIndex: 0 }}
+      />
+
+      {/* Organic SVG curves */}
       <svg
         ref={linesRef}
         className="absolute inset-0 w-full h-full pointer-events-none"
-        style={{ transition: 'transform 0.1s ease-out', opacity: 0.25 }}
+        style={{ transition: 'transform 0.15s ease-out', zIndex: 1 }}
         viewBox="0 0 1440 900"
         preserveAspectRatio="xMidYMid slice"
         xmlns="http://www.w3.org/2000/svg"
       >
-        <path d="M 900 -100 C 900 200, 980 300, 950 500 C 920 700, 880 750, 920 1000"
-          fill="none" stroke="var(--accent)" strokeWidth="1" />
-        <path d="M 960 -100 C 940 150, 1060 350, 1020 550 C 980 750, 940 800, 970 1000"
-          fill="none" stroke="var(--accent)" strokeWidth="0.8" />
-        <path d="M 840 -100 C 860 250, 780 400, 820 600 C 860 800, 820 850, 860 1000"
-          fill="none" stroke="var(--text)" strokeWidth="0.5" opacity="0.3" />
-        <line x1="0" y1="300" x2="1440" y2="300" stroke="var(--text)" strokeWidth="0.3" opacity="0.1" />
-        <line x1="0" y1="600" x2="1440" y2="600" stroke="var(--text)" strokeWidth="0.3" opacity="0.1" />
-        <line x1="360" y1="0" x2="360" y2="900" stroke="var(--text)" strokeWidth="0.3" opacity="0.1" />
-        <line x1="720" y1="0" x2="720" y2="900" stroke="var(--text)" strokeWidth="0.3" opacity="0.1" />
-        <line x1="1080" y1="0" x2="1080" y2="900" stroke="var(--text)" strokeWidth="0.3" opacity="0.1" />
+        <path
+          d="M 950 -50 C 970 200, 1050 320, 1010 520 C 970 720, 940 800, 960 950"
+          fill="none" stroke="var(--accent)" strokeWidth="1.2" opacity="0.45"
+        />
+        <path
+          d="M 1010 -50 C 1030 180, 1100 340, 1070 540 C 1040 740, 1010 820, 1030 950"
+          fill="none" stroke="var(--accent)" strokeWidth="0.8" opacity="0.3"
+        />
+        <path
+          d="M 890 -50 C 910 220, 840 400, 870 580 C 900 760, 870 840, 900 950"
+          fill="none" stroke="var(--accent)" strokeWidth="0.5" opacity="0.2"
+        />
+        <path
+          d="M 1080 -50 C 1060 200, 1130 400, 1110 580 C 1090 760, 1100 840, 1090 950"
+          fill="none" stroke="var(--text)" strokeWidth="0.4" opacity="0.1"
+        />
       </svg>
 
-      {/* Circle 1 */}
-      <div
-        ref={circle1Ref}
-        className="absolute rounded-full pointer-events-none"
-        style={{
-          width: '52px', height: '52px',
-          backgroundColor: 'var(--muted)',
-          opacity: 0.55,
-          top: '37%', left: '63%',
-          transition: 'transform 0.15s ease-out',
-        }}
-      />
-
-      {/* Circle 2 */}
-      <div
-        ref={circle2Ref}
-        className="absolute rounded-full pointer-events-none"
-        style={{
-          width: '40px', height: '40px',
-          backgroundColor: 'var(--muted)',
-          opacity: 0.4,
-          top: '67%', left: '59%',
-          transition: 'transform 0.25s ease-out',
-        }}
-      />
-
-      {/* Main content — vertically centered */}
+      {/* Content */}
       <div
         className="absolute inset-0 flex flex-col justify-center"
-        style={{ paddingLeft: 'clamp(40px, 8vw, 120px)', paddingTop: '80px' }}
+        style={{
+          paddingLeft: 'clamp(40px, 8vw, 120px)',
+          paddingTop: '60px',
+          zIndex: 3,
+        }}
       >
-        {/* Subtitle */}
-        <p
-          className="mb-4"
-          style={{
-            fontSize: '11px',
-            letterSpacing: '0.4em',
-            color: 'var(--muted)',
-            fontWeight: 400,
-          }}
-        >
-          FULL-STACK ENGINEER & AI ENGINEER
+        <p style={{
+          fontSize: '11px',
+          letterSpacing: '0.4em',
+          color: 'var(--muted)',
+          marginBottom: '16px',
+          fontWeight: 400,
+        }}>
+          FULL-STACK ENGINEER & TECHNICAL WRITER
         </p>
 
-        {/* Name with parallax */}
-        <div ref={nameRef} style={{ transition: 'transform 0.12s ease-out' }}>
-          <h1
-            style={{
-              fontSize: 'clamp(80px, 13vw, 190px)',
-              fontWeight: 900,
-              lineHeight: 0.9,
-              letterSpacing: '-0.02em',
-              color: 'var(--text)',
-              textTransform: 'uppercase',
-            }}
-          >
-            Navin
+        <div ref={nameRef} style={{ transition: 'transform 0.15s ease-out' }}>
+          <h1 style={{
+            fontSize: 'clamp(70px, 11vw, 170px)',
+            fontWeight: 900,
+            lineHeight: 1,
+            letterSpacing: '-0.02em',
+            color: 'var(--text)',
+            textTransform: 'uppercase',
+            userSelect: 'none',
+          }}>
+            MELVIN
           </h1>
-          <h1
-            style={{
-              fontSize: 'clamp(60px, 10vw, 150px)',
-              fontWeight: 900,
-              lineHeight: 0.9,
-              letterSpacing: '-0.02em',
-              color: 'var(--accent)',
-              textTransform: 'uppercase',
-            }}
-          >
-            WALKER.
+          <h1 style={{
+            fontSize: 'clamp(70px, 11vw, 170px)',
+            fontWeight: 900,
+            lineHeight: 1,
+            letterSpacing: '-0.02em',
+            color: 'var(--accent)',
+            textTransform: 'uppercase',
+            userSelect: 'none',
+          }}>
+            PRINCE.
           </h1>
         </div>
       </div>
 
-      {/* Scroll hint — bottom left */}
+      {/* Scroll hint */}
       <div
         className="absolute flex items-center gap-4"
         style={{
           bottom: '40px',
           left: 'clamp(40px, 8vw, 120px)',
           color: 'var(--muted)',
+          zIndex: 3,
         }}
       >
         <div style={{ width: '48px', height: '1px', backgroundColor: 'var(--muted)' }} />

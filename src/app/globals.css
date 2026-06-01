@@ -26,15 +26,24 @@
 
 html {
   scroll-behavior: auto;
+  cursor: none !important;
 }
 
 body {
   background-color: var(--bg);
   color: var(--text);
   font-family: 'Inter', sans-serif;
-  cursor: none;
+  cursor: none !important;
   overflow-x: hidden;
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+*, *::before, *::after {
+  cursor: none !important;
+}
+
+a, button {
+  cursor: none !important;
 }
 
 ::selection {
